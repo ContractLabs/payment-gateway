@@ -38,6 +38,26 @@ import {
     ERC165Checker
 } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
+/**
+ * @title PaymentGateway
+ * @dev A contract for processing payments and executing arbitrary contract calls using different types of assets.
+ * It supports the following types of payments:
+ *   - Native: a payment of ether
+ *   - ERC20: a payment of an ERC20 token
+ *   - ERC721: a payment of an ERC721 token
+ *   - ERC1155: a payment of an ERC1155 token
+ * The payment is executed by transferring the asset from the payer to the payment gateway contract,
+ * and then transferring the asset to the payee after the payment is validated and approved.
+ * The payment gateway contract can execute arbitrary contract calls on behalf of the payee after the payment is completed.
+ * This contract inherits from the following interfaces and contracts:
+ *   - Ownable: for setting and retrieving the owner of the contract
+ *   - Pausable: for pausing and resuming the contract in case of an emergency
+ *   - FundRecoverable: for recovering accidentally sent tokens to the contract
+ *   - IPaymentGateway: for defining the payment gateway contract interface
+ *   - IERC721Receiver: for receiving ERC721 tokens
+ *   - IERC1155Receiver: for receiving ERC1155 tokens
+ *   - PaymentGatewayCore: for providing the core payment processing logic
+ */
 contract PaymentGateway is
     Ownable,
     Pausable,
@@ -55,22 +75,52 @@ contract PaymentGateway is
 
     IPermit2 public permit2;
 
+    /**
+     * @dev Constructor function for the PaymentGateway contract.
+     * @param permit2_ An IPermit2 instance used for permitting ERC20 transfers.
+     * This contract uses the permit2_ instance for allowing token transfers without the need for an explicit approval.
+     * It is set as the default permit2 instance for all ERC20 tokens.
+     */
     constructor(IPermit2 permit2_) payable Ownable() {
         _setPermit2(permit2_);
     }
 
+    /**
+     * @dev Pauses the contract in case of an emergency.
+     * Can only be called by the contract owner.
+     */
     function pause() external onlyOwner {
         _pause();
     }
 
+    /**
+     * @dev Resumes the contract after it has been paused.
+     * Can only be called by the contract owner.
+     */
     function unpause() external onlyOwner {
         _unpause();
     }
 
+    /**
+     * @dev Sets the permit2 instance used for permitting ERC20 transfers.
+     * @param permit2_ An IPermit2 instance used for permitting ERC20 transfers.
+     * This contract uses the permit2_ instance for allowing token transfers without the need for an explicit approval.
+     * It is set as the default permit2 instance for all ERC20 tokens.
+     * Can only be called by the contract owner.
+     */
     function setPermit2(IPermit2 permit2_) external onlyOwner {
         _setPermit2(permit2_);
     }
 
+    /**
+     *@dev Function to handle ERC1155 token received.
+     *@param operator_ The address that called the safeTransferFrom function.
+     *@param from_ The address which previously owned the token.
+     *@param id_ The id of the token being transferred.
+     *@param value_ The amount of the token being transferred.
+     *@param data_ Additional data with no specified format.
+     *@return bytes4 IERC1155Receiver.onERC1155Received.selector
+     */
     function onERC1155Received(
         address operator_,
         address from_,
@@ -105,6 +155,15 @@ contract PaymentGateway is
         return IERC1155Receiver.onERC1155Received.selector;
     }
 
+    /**
+     * @dev Handle the receipt of multiple ERC-1155 tokens.
+     * @param operator_ The address which called the function.
+     * @param from_ The address which previously owned the token.
+     * @param ids_ The IDs of the tokens being transferred.
+     * @param values_ The amount of tokens being transferred.
+     * @param data_ Additional data with no specified format.
+     * @return A bytes4 value indicating success or failure
+     **/
     function onERC1155BatchReceived(
         address operator_,
         address from_,
