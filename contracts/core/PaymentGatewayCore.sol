@@ -71,10 +71,12 @@ abstract contract PaymentGatewayCore is
      * @param payment_ A Payment struct that contains the payment details.
      */
     /// @inheritdoc IPaymentGatewayCore
-    function payAndCall(
+    function callAndPay(
         Request calldata request_,
         Payment calldata payment_
-    ) external payable virtual nonReentrant {
+    ) external payable virtual nonReentrant returns (bytes memory result) {
+        result = _call(request_, payment_);
+
         address sender = _msgSender();
 
         uint8 paymentType = _beforePayment(sender, request_, payment_);
@@ -82,8 +84,6 @@ abstract contract PaymentGatewayCore is
         _pay(sender, paymentType, payment_);
 
         _afterPayment(sender, paymentType, request_, payment_);
-
-        _call(request_, payment_);
     }
 
     /**
@@ -91,13 +91,17 @@ abstract contract PaymentGatewayCore is
      * @param request_ A Request struct that contains the details of the request to be executed.
      * @param payment_ A Payment struct that contains the payment details.
      */
-    function _call(Request memory request_, Payment memory payment_) internal {
+    function _call(
+        Request memory request_,
+        Payment memory payment_
+    ) internal returns (bytes memory returnOrRevertData) {
         if (
             IPaymentGatewayReceiver(request_.to).canReceiveRequest() !=
             IPaymentGatewayReceiver.canReceiveRequest.selector
         ) revert PaymentGatewayCore__UnsafeRecipient();
 
-        (bool success, bytes memory returnOrRevertData) = request_.to.call(
+        bool success;
+        (success, returnOrRevertData) = request_.to.call(
             abi.encodePacked(
                 request_.fnSelector,
                 abi.encode(

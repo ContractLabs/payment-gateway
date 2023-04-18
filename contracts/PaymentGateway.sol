@@ -24,7 +24,7 @@ import {
     IERC1155,
     IERC1155Receiver
 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {IERC4494} from "./eip/interfaces/IERC4494.sol";
+import {IERC4494} from "./external/interfaces/IERC4494.sol";
 import {IPermit2, IPaymentGateway} from "./interfaces/IPaymentGateway.sol";
 
 import {SigUtil} from "./libraries/SigUtil.sol";
@@ -133,6 +133,8 @@ contract PaymentGateway is
             Request memory request
         ) = __decodePaymentAndRequest(from_, data_, abi.encode(id_, value_));
 
+        _call(request, payment);
+
         uint8 paymentType = _beforePayment(operator_, request, payment);
 
         address paymentToken = payment.token;
@@ -149,8 +151,6 @@ contract PaymentGateway is
         );
 
         _afterPayment(paymentToken, paymentType, request, payment);
-
-        _call(request, payment);
 
         return IERC1155Receiver.onERC1155Received.selector;
     }
@@ -176,6 +176,8 @@ contract PaymentGateway is
             Request memory request
         ) = __decodePaymentAndRequest(from_, data_, abi.encode(ids_, values_));
 
+        _call(request, payment);
+
         uint8 paymentType = _beforePayment(operator_, request, payment);
 
         address paymentToken = payment.token;
@@ -193,8 +195,6 @@ contract PaymentGateway is
 
         _afterPayment(paymentToken, paymentType, request, payment);
 
-        _call(request, payment);
-
         return IERC1155Receiver.onERC1155BatchReceived.selector;
     }
 
@@ -209,6 +209,8 @@ contract PaymentGateway is
             Request memory request
         ) = __decodePaymentAndRequest(from_, data_, abi.encode(tokenId_));
 
+        _call(request, payment);
+
         uint8 paymentType = _beforePayment(operator_, request, payment);
 
         address paymentToken = payment.token;
@@ -219,8 +221,6 @@ contract PaymentGateway is
         __safeERC721TransferFrom(paymentToken, from_, payment.to, tokenId_);
 
         _afterPayment(paymentToken, paymentType, request, payment);
-
-        _call(request, payment);
 
         return IERC721Receiver.onERC721Received.selector;
     }
@@ -248,55 +248,52 @@ contract PaymentGateway is
     ) internal override {
         if (paymentType_ == uint8(AssetLabel.NATIVE)) {
             __handleNativeTransfer(sender_, payment_);
-            return;
-        }
-
-        if (paymentType_ == uint8(AssetLabel.ERC20))
-            __handleERC20Transfer(payment_);
-        else {
-            if (paymentType_ == uint8(AssetLabel.ERC721))
-                __handleERC721Transfer(
-                    payment_.token,
-                    payment_.from,
-                    payment_.to,
-                    abi.decode(payment_.extraData, (uint256)),
-                    payment_.permission.deadline,
-                    payment_.permission.signature
-                );
-            else if (paymentType_ == uint8(AssetLabel.ERC1155)) {
-                (bool isBatchTransfer, bytes memory transferData) = abi.decode(
-                    payment_.extraData,
-                    (bool, bytes)
-                );
-                if (isBatchTransfer) {
-                    (uint256 tokenId, uint256 amount) = abi.decode(
-                        transferData,
-                        (uint256, uint256)
-                    );
-
-                    __safeERC1155TransferFrom(
+        } else {
+            if (paymentType_ == uint8(AssetLabel.ERC20))
+                __handleERC20Transfer(payment_);
+            else {
+                if (paymentType_ == uint8(AssetLabel.ERC721))
+                    __handleERC721Transfer(
                         payment_.token,
                         payment_.from,
                         payment_.to,
-                        tokenId,
-                        amount
+                        abi.decode(payment_.extraData, (uint256)),
+                        payment_.permission.deadline,
+                        payment_.permission.signature
                     );
-                } else {
-                    (uint256[] memory ids, uint256[] memory amounts) = abi
-                        .decode(transferData, (uint256[], uint256[]));
+                else if (paymentType_ == uint8(AssetLabel.ERC1155)) {
+                    (bool isBatchTransfer, bytes memory transferData) = abi
+                        .decode(payment_.extraData, (bool, bytes));
+                    if (isBatchTransfer) {
+                        (uint256 tokenId, uint256 amount) = abi.decode(
+                            transferData,
+                            (uint256, uint256)
+                        );
 
-                    __safeERC1155BatchTransferFrom(
-                        payment_.token,
-                        payment_.from,
-                        payment_.to,
-                        ids,
-                        amounts
-                    );
-                }
-            } else revert PaymentGateway__InvalidToken(payment_.token);
+                        __safeERC1155TransferFrom(
+                            payment_.token,
+                            payment_.from,
+                            payment_.to,
+                            tokenId,
+                            amount
+                        );
+                    } else {
+                        (uint256[] memory ids, uint256[] memory amounts) = abi
+                            .decode(transferData, (uint256[], uint256[]));
+
+                        __safeERC1155BatchTransferFrom(
+                            payment_.token,
+                            payment_.from,
+                            payment_.to,
+                            ids,
+                            amounts
+                        );
+                    }
+                } else revert PaymentGateway__InvalidToken(payment_.token);
+            }
+
+            if (msg.value != 0) __refundNative(sender_, msg.value);
         }
-
-        if (msg.value != 0) __refundNative(sender_, msg.value);
     }
 
     function _beforeRecover(bytes memory) internal view override {
@@ -359,17 +356,18 @@ contract PaymentGateway is
     }
 
     function __handleERC20Transfer(Payment calldata payment_) private {
-        uint256 sendAmount = abi.decode(payment_.extraData, (uint256));
-
         address from = payment_.from;
         address paymentToken = payment_.token;
 
         IPermit2 _permit2 = permit2;
+
         (uint256 allowed, bool supportedEIP2612) = __viewERC20SelfAllowance(
             _permit2,
             paymentToken,
             from
         );
+
+        uint256 sendAmount = abi.decode(payment_.extraData, (uint256));
 
         if (allowed < sendAmount) {
             if (supportedEIP2612) {
@@ -438,6 +436,7 @@ contract PaymentGateway is
     ) private {
         uint256 sendAmount = abi.decode(payment_.extraData, (uint256));
         uint256 refundAmount = msg.value - sendAmount;
+
         __safeNativeTransfer(payment_.to, sendAmount);
 
         __refundNative(sender_, refundAmount);
@@ -445,6 +444,7 @@ contract PaymentGateway is
 
     function __refundNative(address to_, uint256 amount_) private {
         __safeNativeTransfer(to_, amount_);
+
         emit Refunded(to_, amount_);
     }
 
@@ -576,10 +576,8 @@ contract PaymentGateway is
         bytes calldata data_,
         bytes memory extraData_
     ) private view returns (Payment memory payment, Request memory request) {
-        address sendTo;
-        (sendTo, request) = abi.decode(data_, (address, Request));
+        (payment.to, request) = abi.decode(data_, (address, Request));
 
-        payment.to = sendTo;
         payment.from = from_;
         payment.token = _msgSender();
         payment.extraData = extraData_;

@@ -83,8 +83,8 @@ interface IPaymentGatewayCore {
      *@param request_ The Request struct containing information about the request to be called.
      *@param payment_ The Payment struct containing information about the payment to be made.
      */
-    function payAndCall(
+    function callAndPay(
         Request calldata request_,
         Payment calldata payment_
-    ) external payable;
+    ) external payable returns (bytes memory result);
 }

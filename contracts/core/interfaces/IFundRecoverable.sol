@@ -25,6 +25,10 @@ interface IFundRecoverable {
     /**
      * @dev Allows the contract to recover funds through external calls.
      * @param calldata_ An array of `RecoverCallData` structs, each containing the information required to execute a recover call.
+     * @param extraData_ Extra data for abstract preprocessing logic.
      */
-    function recover(RecoverCallData[] calldata calldata_) external;
+    function recover(
+        RecoverCallData[] calldata calldata_,
+        bytes calldata extraData_
+    ) external;
 }

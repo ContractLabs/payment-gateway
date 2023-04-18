@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {IPermit2} from "../utils/permit2/interfaces/IPermit2.sol";
+import {IPausable} from "./IPausable.sol";
+import {IPermit2} from "../external/interfaces/IPermit2.sol";
 
 import {IPaymentGatewayCore} from "../core/interfaces/IPaymentGatewayCore.sol";
 
@@ -10,7 +11,7 @@ import {IPaymentGatewayCore} from "../core/interfaces/IPaymentGatewayCore.sol";
  *@dev The interface for the PaymentGateway contract, which facilitates payments and calls to external contracts. 
  This contract inherits from IPaymentGatewayCore and provides additional functionality for managing payments and pausing the contract.
  */
-interface IPaymentGateway is IPaymentGatewayCore {
+interface IPaymentGateway is IPausable, IPaymentGatewayCore {
     /**
      *@dev Error message when a payment fails.
      */
@@ -73,14 +74,4 @@ interface IPaymentGateway is IPaymentGatewayCore {
      *@param amount The amount of tokens refunded.
      */
     event Refunded(address indexed to, uint256 indexed amount);
-
-    /**
-     *@dev Pauses the contract, preventing any new payments or calls.
-     */
-    function pause() external;
-
-    /**
-     *@dev Unpauses the contract, allowing payments and calls to resume.
-     */
-    function unpause() external;
 }

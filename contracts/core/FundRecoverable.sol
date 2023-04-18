@@ -18,8 +18,11 @@ abstract contract FundRecoverable is Context, IFundRecoverable {
     using ErrorHandler for bool;
 
     /// @inheritdoc IFundRecoverable
-    function recover(RecoverCallData[] calldata calldata_) external virtual {
-        _beforeRecover("");
+    function recover(
+        RecoverCallData[] calldata calldata_,
+        bytes calldata extraData_
+    ) external virtual {
+        _beforeRecover(extraData_);
         _recover(calldata_);
     }
 
@@ -34,9 +37,11 @@ abstract contract FundRecoverable is Context, IFundRecoverable {
      * @dev Internal function that executes the recover function.
      * @param calldata_ An array of RecoverCallData structs representing the calls to execute.
      */
-    function _recover(RecoverCallData[] calldata calldata_) internal virtual {
+    function _recover(
+        RecoverCallData[] calldata calldata_
+    ) internal virtual returns (bytes[] memory results) {
         uint256 length = calldata_.length;
-        bytes[] memory results = new bytes[](length);
+        results = new bytes[](length);
 
         bool success;
         bytes memory returnOrRevertData;
